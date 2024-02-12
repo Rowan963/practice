@@ -1,98 +1,119 @@
 import pickle
 import os
 
-found_books = {}
+catalogue_title = {}
+catalogue_writer = {}
 
 if os.path.exists('my_data.pickle') and os.path.getsize('my_data.pickle') > 0:
     with open('my_data.pickle', 'rb') as f:
         catalogue_title, catalogue_writer = pickle.load(f)
-else:
-    catalogue_title = {}
-    catalogue_writer = {}
 
 class Book:
-    def __init__(self, title, writer):
+    def __init__(self, title, writer, original_title=""):
         self.title = title
         self.writer = writer
+        self.original_title = original_title
 
     def add(self):
-        global catalogue_title
-        global catalogue_writer
-        
-        sequence = self.writer.split(',')
-        sequence = list(tuple(elem.strip() for elem in sequence))
-        
-        catalogue_title[self.title] = sequence
-        catalogue_writer[sequence] = self.title
+        catalogue_title[self.title] = {
+            "writer": self.writer.split(','),
+            "original_title": self.original_title
+        }
+        for writer in catalogue_title[self.title]["writer"]:
+            catalogue_writer.setdefault(writer.strip(), []).append(self.title)
 
-def search(q, b):
-    global catalogue_title
-    global found_books
-    found_books.clear()
+    def edit(self, new_title, new_writer, new_original_title=""):
+        if self.title in catalogue_title:
+            old_details = catalogue_title.pop(self.title)
+            for writer in old_details["writer"]:
+                catalogue_writer[writer].remove(self.title)
 
-    for key.upper in catalogue_title.keys().upper:
-        if q in key:
-            found_books[key] = catalogue_title[key]
+            catalogue_title[new_title] = {
+                "writer": new_writer.split(','),
+                "original_title": new_original_title
+            }
+            for writer in catalogue_title[new_title]["writer"]:
+                catalogue_writer.setdefault(writer.strip(), []).append(new_title)
 
-    for t, w in found_books.items():
-        print(f'{t}({w})')
-    if found_books=={}:
+            if new_title != self.title:
+                del catalogue_title[self.title]
+        else:
+            print(f'Book "{self.title}" not found in the catalog.')
+
+def search(q):
+    found_books = {title: details for title, details in catalogue_title.items() if q.upper() in title.upper()}
+    if found_books:
+        for title, details in found_books.items():
+            print(f'Title: {title}')
+            print(f'Writer: {", ".join(details["writer"])}')
+            print(f'Original Title: {details["original_title"]}')
+    else:
         print(f'Book "{q}" not found in the catalog.')
 
-def delete(q, b):
-    global catalogue_title
-    global catalogue_writer
-    search(q,b)
-    action = int(input('Delete the book?([1]Y/[2]N)'))
-    if action == 1:
-        catalogue_writer.pop(catalogue_title[q])
+def delete(q):
+    search(q)
+    if q in catalogue_title:
+        action = input('Delete the book? ([Y]es/[N]o): ')
+        if action.lower() == 'y':
+            details = catalogue_title.pop(q)
+            for writer in details["writer"]:
+                catalogue_writer[writer].remove(q)
+            print(f'Book "{q}" deleted successfully.')
+    else:
+        print(f'Book "{q}" not found in the catalog.')
 
-def input_error(n):
-    print(f'Please enter a number between 1 and {n}.')
+def print_all_books():
+    if catalogue_title:
+        for title, details in catalogue_title.items():
+            print(f'Title: {title}')
+            print(f'Writer: {", ".join(details["writer"])}')
+            print(f'Original Title: {details["original_title"]}')
+    else:
+        print('The catalog is empty.')
 
-# start
 print('Welcome to the book catalogue!')
 while True:
     print()
     print('What do you want to do?')
-    print('[0] Exit [1] Add book [2] Search book [3] Delete book [4] Print all books')
-    action = int(input('Enter the number: '))
-    
-    if action == 0:
+    print('[0] Exit [1] Add book [2] Search book [3] Delete book [4] Print all books [5] Edit book')
+    action = input('Enter the number: ')
+
+    if action == '0':
         break
-    elif action == 1:  # add
+    elif action == '1':
         print('[Add book:]')
         title = input('Please enter the title of the book: ')
         writer = input('Please enter the writer of the book: ')
-        book = Book(title=title, writer=writer)
+        original_title = input('Please enter the original title of the book: ')
+        book = Book(title=title, writer=writer, original_title=original_title)
         book.add()
-        
-    elif action == 2 or action == 3:  # search/delete
-        if action == 2:
+    elif action in ['2', '3']:
+        if action == '2':
             action_text = 'search'
-        elif action == 3:
+        elif action == '3':
             action_text = 'delete'
         print(f'[{action_text} book:]')
-        search_by = int(input('By [1] title or [2] writer? '))
-        if search_by == 1:
-            search_type = catalogue_title
-        elif search_by == 2:
-            search_type = catalogue_writer
-        else:
-            input_error(2)
-            continue
         query = input(f'Please enter the {action_text} query: ')
-        if action == 2:
-            search(query, search_type)
+        if action == '2':
+            search(query)
         else:
-            delete(query, search_type)
-            
-    elif action == 4:  # print all book
-        for title, writer in catalogue_title.items():
-            print(f'{title}({writer})')
+            delete(query)
+    elif action == '4':
+        print_all_books()
+    elif action == '5':
+        print('[Edit book:]')
+        old_title = input('Please enter the title of the book you want to edit: ')
+        if old_title in catalogue_title:
+            new_title = input('Please enter the new title of the book: ')
+            new_writer = input('Please enter the new writer of the book: ')
+            new_original_title = input('Please enter the new original title of the book: ')
+            book = Book(title=old_title, writer="", original_title="")
+            book.edit(new_title=new_title, new_writer=new_writer, new_original_title=new_original_title)
+            print('Book information edited successfully!')
+        else:
+            print(f'Book "{old_title}" not found in the catalog.')
     else:
-        input_error(4)
-        continue
+        print(f'Please enter a number between 0 and 5.')
 
-with open('my_data.pickle', 'wb') as f:  # save
+with open('my_data.pickle', 'wb') as f:
     pickle.dump((catalogue_title, catalogue_writer), f)
